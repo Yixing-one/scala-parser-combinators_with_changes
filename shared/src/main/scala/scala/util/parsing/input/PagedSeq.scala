@@ -121,18 +121,18 @@ extends scala.collection.AbstractSeq[T]
 {
   def this(more: (Array[T], Int, Int) => Int) = this(more, new Page[T](0), 0, UndeterminedEnd)
 
-  private var current: Page[T] = first1
+  private var current: Page[T]|Null = first1
 
   private def latest = first1.latest
 
   private def addMore() = latest.addMore(more)
 
   private def page(absindex: Int) = {
-    if (absindex < current.start)
+    if (absindex < current.nn.start)
       current = first1
-    while (absindex >= current.end && current.next != null)
-      current = current.next
-    while (absindex >= current.end && !current.isLast) {
+    while (absindex >= current.nn.end && current.next != null)
+      current = current.nn.next
+    while (absindex >= current.nn.end && !current.isLast) {
       current = addMore()
     }
     current
@@ -160,7 +160,7 @@ extends scala.collection.AbstractSeq[T]
   override def isDefinedAt(index: Int) =
     index >= 0 && index < end - start && {
       val absidx = index + start
-      absidx >= 0 && absidx < page(absidx).end
+      absidx >= 0 && absidx < page(absidx).nn.end
     }
 
    /** The subsequence from index `start` up to `end -1` if `end`
@@ -204,10 +204,10 @@ private class Page[T: ClassTag](val num: Int) {
   private final val PageSize = 4096
 
   /** The next page in the sequence */
-  var next  : Page[T] = null
+  var next  : Page[T]|Null = null
 
   /** A later page in the sequence, serves a cache for pointing to last page */
-  var later : Page[T] = this
+  var later : Page[T]|Null = this
 
   /** The number of elements read into this page */
   var filled: Int = 0
@@ -228,11 +228,11 @@ private class Page[T: ClassTag](val num: Int) {
 
   /** The last page as currently present in the sequence; This can change as more
    *  elements get appended to the sequence.  */
-  final def latest: Page[T] = {
+  final def latest: Page[T]|Null = {
     var oldLater = later
-    while (later.next != null) later = later.next
-    while (oldLater.next != null) {
-      oldLater = oldLater.next
+    while (later.nn.next != null) later = later.nn.next
+    while (oldLater.nn.next != null) {
+      oldLater = oldLater.nn.next
       oldLater.later = later
     }
     later
@@ -251,7 +251,7 @@ private class Page[T: ClassTag](val num: Int) {
   final def addMore(more: (Array[T], Int, Int) => Int): Page[T] =
     if (filled == PageSize) {
       next = new Page[T](num + 1)
-      next.addMore(more)
+      next.nn.addMore(more)
     } else {
       val count = more(data, filled, PageSize - filled)
       if (count < 0) isLast = true
